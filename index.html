@@ -51,6 +51,10 @@
   .tag{font-size:11.5px;color:var(--muted)}
   .note{color:var(--muted);font-size:13px;margin-top:14px;text-align:center}
   .multi-hint{color:var(--warn);font-size:13px;font-weight:600;margin-bottom:8px}
+  .stem{background:#0b2233;border:1px solid var(--accent2);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:14.5px}
+  .stem b{color:var(--accent)}
+  .lead{background:#2a2410;border:1px solid var(--warn);border-radius:10px;padding:10px 13px;margin:4px 0 12px;font-size:14px}
+  .lead::before{content:"🕒 Diễn tiến: ";color:var(--warn);font-weight:700}
 </style>
 </head>
 <body>
@@ -62,23 +66,40 @@
 
   <!-- START SCREEN -->
   <div id="start" class="card">
-    <div class="row" style="justify-content:space-between">
-      <div>
-        <span class="pill">Ngân hàng: <b id="bankCount">0</b> câu</span>
-        <span class="pill">5 chủ đề gãy xương</span>
-      </div>
+    <div class="row">
+      <span class="pill">Ngân hàng: <b id="bankCount">0</b> câu lẻ</span>
+      <span class="pill"><b id="caseCount">0</b> case lâm sàng</span>
     </div>
     <div class="row" style="margin-top:12px">
-      <label class="sel">Số câu mỗi lượt:</label>
-      <select id="numQ">
-        <option value="6">6 câu</option>
-        <option value="8" selected>8 câu</option>
-        <option value="10">10 câu</option>
-        <option value="15">15 câu</option>
+      <label class="sel">Chế độ:</label>
+      <select id="mode">
+        <option value="bank" selected>Câu hỏi lẻ random</option>
+        <option value="case">Case lâm sàng</option>
       </select>
-      <label class="sel">Chủ đề:</label>
-      <select id="topicSel"><option value="all">Tất cả</option></select>
     </div>
+
+    <div id="bankCtrl">
+      <div class="row" style="margin-top:12px">
+        <label class="sel">Số câu mỗi lượt:</label>
+        <select id="numQ">
+          <option value="6">6 câu</option>
+          <option value="8" selected>8 câu</option>
+          <option value="10">10 câu</option>
+          <option value="15">15 câu</option>
+        </select>
+        <label class="sel">Chủ đề:</label>
+        <select id="topicSel"><option value="all">Tất cả</option></select>
+      </div>
+    </div>
+
+    <div id="caseCtrl" class="hide">
+      <div class="row" style="margin-top:12px">
+        <label class="sel">Chọn case:</label>
+        <select id="caseSel"><option value="random">🎲 Ngẫu nhiên</option></select>
+      </div>
+      <p class="note" style="text-align:left;margin-top:8px">Mỗi case gồm đề bài và 6 câu hỏi liên kết, độ khó cao. Kiểu A diễn tiến theo thời gian, kiểu B cho đủ dữ kiện từ đầu.</p>
+    </div>
+
     <div class="row" style="margin-top:16px">
       <button class="btn" id="startBtn">Bắt đầu làm bài →</button>
     </div>
@@ -88,10 +109,12 @@
   <!-- QUIZ SCREEN -->
   <div id="quiz" class="card hide">
     <div class="bar"><i id="prog"></i></div>
+    <div id="stemBox" class="stem hide"></div>
     <div class="row" style="justify-content:space-between">
       <span class="qnum" id="counter"></span>
       <span class="tag" id="topicTag"></span>
     </div>
+    <div id="leadBox" class="lead hide"></div>
     <div id="multiHint" class="multi-hint hide"></div>
     <div class="qtext" id="qtext"></div>
     <div id="opts"></div>
@@ -122,246 +145,393 @@
 </div>
 
 <script>
-/* ====== NGÂN HÀNG CÂU HỎI (trích từ tài liệu) ====== */
+/* ====== NGÂN HÀNG CÂU HỎI LẺ (trích từ tài liệu) ====== */
 const BANK = [
-/* --- GÃY CỔ XƯƠNG ĐÙI --- */
 {t:"Cổ xương đùi", multi:false, ans:["B"],
  q:"Nguồn mạch nuôi được xem là quan trọng nhất cho chỏm xương đùi là:",
  o:{A:"Động mạch dây chằng tròn",B:"Động mạch mũ đùi trong và ngoài",C:"Động mạch từ thân xương đùi lên trong ống tủy",D:"Động mạch bịt",E:"Động mạch mông trên"},
- e:"3 nguồn nuôi chỏm gồm ĐM dây chằng tròn (chỉ nuôi 1/4 chỏm), ĐM mũ đùi trong–ngoài tách từ ĐM đùi sâu, và ĐM từ thân xương đùi. Mũ đùi trong–ngoài là nhánh quan trọng nhất.",
+ e:"Ba nguồn nuôi chỏm gồm động mạch dây chằng tròn nuôi một phần tư chỏm, động mạch mũ đùi trong và ngoài tách từ động mạch đùi sâu, và động mạch từ thân xương đùi. Mũ đùi trong và ngoài là nhánh quan trọng nhất.",
  s:"Note (Gãy cổ xương đùi)"},
-
 {t:"Cổ xương đùi", multi:false, ans:["D"],
  q:"Đặc điểm nào sau đây mô tả đúng gãy cổ xương đùi Garden IV?",
  o:{A:"Gãy dạng, các bè xương gài vào nhau",B:"Gãy hoàn toàn, không di lệch",C:"Gãy hoàn toàn, di lệch một phần",D:"Gãy hoàn toàn, di lệch rời hẳn, các bè xương dọc song song nhau",E:"Gãy không hoàn toàn ở nền cổ"},
- e:"Garden IV: gãy hoàn toàn, di lệch rời hẳn, bè xương dọc song song — tiên lượng xấu nhất, nguy cơ hoại tử chỏm ~100%.",
+ e:"Garden IV: gãy hoàn toàn, di lệch rời hẳn, bè xương dọc song song; tiên lượng xấu nhất, nguy cơ hoại tử chỏm gần như hoàn toàn.",
  s:"Note (Gãy xương cơ bản) – phân loại Garden"},
-
 {t:"Cổ xương đùi", multi:true, ans:["A","C"],
- q:"Lý do gãy cổ xương đùi (phần nằm trong bao khớp) thường lâu liền. Chọn 2 đáp án đúng.",
+ q:"Lý do gãy cổ xương đùi phần nằm trong bao khớp thường lâu liền. Chọn 2 đáp án đúng.",
  o:{A:"Không tạo được can xương ngoại vi từ màng xương",B:"Màng trong xương không tham gia liền xương",C:"Nước hoạt dịch làm tiêu máu tụ ổ gãy",D:"Cổ xương đùi không có nguồn mạch nuôi nào",E:"Bao hoạt dịch bao phủ toàn bộ mặt sau cổ xương đùi"},
- e:"Gãy trong bao khớp không tạo can ngoại vi từ màng xương (chỉ liền nhờ màng trong xương); nước hoạt dịch lại làm tiêu máu tụ, ngăn tế bào hình thành → lâu liền.",
+ e:"Gãy trong bao khớp không tạo can ngoại vi từ màng xương, chỉ liền nhờ màng trong xương; nước hoạt dịch làm tiêu máu tụ, ngăn tế bào hình thành nên lâu liền.",
  s:"Note (Gãy cổ xương đùi)"},
-
 {t:"Cổ xương đùi", multi:false, ans:["C"],
  q:"Tỷ lệ hoại tử vô khuẩn chỏm xương đùi sau gãy cổ xương đùi vào khoảng:",
  o:{A:"1 – 5%",B:"5 – 10%",C:"10 – 45%",D:"50 – 70%",E:"Trên 80%"},
- e:"Theo tài liệu, hoại tử vô khuẩn chỏm 10–45%; không liền xương 5–30%.",
+ e:"Theo tài liệu, hoại tử vô khuẩn chỏm 10 đến 45%; không liền xương 5 đến 30%.",
  s:"Note (Gãy cổ xương đùi) – biến chứng"},
-
 {t:"Cổ xương đùi", multi:false, ans:["B"],
  q:"Ở người già gãy cổ xương đùi, nguy cơ tử vong chủ yếu liên quan đến:",
  o:{A:"Bản thân ổ gãy xương",B:"Biến chứng do nằm lâu như viêm phổi, loét",C:"Mất máu cấp tại ổ gãy",D:"Tổn thương thần kinh tọa",E:"Thuyên tắc khí"},
- e:"Tiên lượng tử vong không phải do xương gãy mà do biến chứng nằm lâu (viêm phổi, loét) → ưu tiên mổ thay khớp để ngồi dậy sớm.",
+ e:"Tiên lượng tử vong không phải do xương gãy mà do biến chứng nằm lâu như viêm phổi, loét; ưu tiên mổ thay khớp để ngồi dậy sớm.",
  s:"Note (Gãy xương cơ bản) – keywords"},
-
 {t:"Cổ xương đùi", multi:false, ans:["A"],
  q:"Về trật khớp háng nhân tạo sau mổ thay khớp ở bệnh nhân gãy cổ xương đùi, nhận định đúng là:",
- o:{A:"Thay khớp toàn phần có tỷ lệ trật cao hơn ~7 lần so với bán phần",B:"Thay khớp bán phần có tỷ lệ trật cao hơn ~7 lần so với toàn phần",C:"Hai loại có tỷ lệ trật như nhau",D:"Thay khớp toàn phần hầu như không bao giờ trật",E:"Tỷ lệ trật chung khoảng 50%"},
- e:"Trật khớp nhân tạo sau mổ ~10%; thay khớp toàn phần có tỷ lệ trật cao hơn khoảng 7 lần so với thay bán phần.",
+ o:{A:"Thay khớp toàn phần có tỷ lệ trật cao hơn khoảng 7 lần so với bán phần",B:"Thay khớp bán phần có tỷ lệ trật cao hơn khoảng 7 lần so với toàn phần",C:"Hai loại có tỷ lệ trật như nhau",D:"Thay khớp toàn phần hầu như không bao giờ trật",E:"Tỷ lệ trật chung khoảng 50%"},
+ e:"Trật khớp nhân tạo sau mổ khoảng 10%; thay khớp toàn phần có tỷ lệ trật cao hơn khoảng 7 lần so với thay bán phần.",
  s:"Note (Gãy cổ xương đùi)"},
-
 {t:"Cổ xương đùi", multi:false, ans:["D"],
  q:"Theo nguyên tắc xử trí, gãy cổ xương đùi Garden III, IV ở người già thường được:",
  o:{A:"Bảo tồn bằng bó bột chậu – đùi",B:"Kéo liên tục đến khi liền xương",C:"Kết hợp xương bằng vít xốp đơn thuần là chính",D:"Thay khớp háng",E:"Theo dõi không can thiệp"},
- e:"Garden I, II có thể bảo tồn hoặc KHX; Garden III, IV ở người già bắt buộc thay khớp.",
+ e:"Garden I, II có thể bảo tồn hoặc kết hợp xương; Garden III, IV ở người già bắt buộc thay khớp.",
  s:"Note (Gãy xương cơ bản) – mẹo Garden"},
-
-/* --- GÃY THÂN XƯƠNG ĐÙI --- */
 {t:"Thân xương đùi", multi:false, ans:["B"],
  q:"Vị trí gãy thân xương đùi nào phù hợp nhất với chỉ định đóng đinh nội tủy theo tài liệu?",
  o:{A:"Gãy 1/3 trên",B:"Gãy 1/3 giữa",C:"Gãy 1/3 dưới",D:"Gãy nền cổ",E:"Gãy liên lồi cầu"},
- e:"Ống tủy hẹp ở 1/3 giữa, rộng ở hai đầu → gãy 1/3 giữa đóng đinh nội tủy; 1/3 trên và dưới dùng nẹp vít AO.",
+ e:"Ống tủy hẹp ở 1/3 giữa, rộng ở hai đầu nên gãy 1/3 giữa đóng đinh nội tủy; 1/3 trên và dưới dùng nẹp vít AO.",
  s:"Note (Gãy thân xương đùi)"},
-
 {t:"Thân xương đùi", multi:false, ans:["C"],
  q:"Khi khám một bệnh nhân nghi gãy thân xương đùi, động tác nào KHÔNG nên thực hiện?",
  o:{A:"So sánh chiều dài tương đối hai chi",B:"Đo mạch và huyết áp",C:"Tìm cử động bất thường và dấu lạo xạo xương",D:"Quan sát điểm bầm tím vùng thấp",E:"Đánh giá vận động cảm giác đầu chi"},
  e:"Không tìm cử động bất thường và lạo xạo xương vì dễ gây sốc.",
  s:"Note (Gãy thân xương đùi)"},
-
 {t:"Thân xương đùi", multi:false, ans:["A"],
  q:"Gãy 1/3 dưới thân xương đùi cần lưu ý nguy cơ tổn thương cấu trúc nào?",
  o:{A:"Bó mạch thần kinh khoeo vùng ống Hunter",B:"Thần kinh quay",C:"Động mạch mũ đùi",D:"Thần kinh bịt",E:"Bó mạch chậu ngoài"},
  e:"Gãy 1/3 dưới có thể tổn thương bó mạch thần kinh khoeo hoặc vùng ống Hunter.",
  s:"Note (Gãy thân xương đùi)"},
-
 {t:"Thân xương đùi", multi:true, ans:["A","C","E"],
  q:"Dấu hiệu khám phù hợp với gãy thân xương đùi di lệch. Chọn 3 đáp án đúng.",
  o:{A:"Chi ngắn, biến dạng gập góc",B:"Bàn chân xoay vào trong áp sát mặt giường",C:"Cạnh ngoài bàn chân đổ sát mặt giường",D:"Khớp gối duỗi cứng hoàn toàn",E:"Sưng to nhanh tại đùi"},
  e:"Khám thấy sưng to nhanh, chi ngắn gập góc, cạnh ngoài bàn chân đổ sát mặt giường; bầm tím vùng thấp và tràn dịch gối muộn.",
  s:"Note (Gãy thân xương đùi)"},
-
 {t:"Thân xương đùi", multi:false, ans:["A"],
  q:"Trẻ em gãy thân xương đùi thường được ưu tiên hướng điều trị nào?",
  o:{A:"Điều trị bảo tồn",B:"Đóng đinh nội tủy có chốt",C:"Nẹp vít AO ngay thì đầu",D:"Thay khớp",E:"Khung cố định ngoài vĩnh viễn"},
  e:"Trẻ em ít di lệch hơn, liền xương nhanh, khả năng bình chỉnh tốt nên thiên về điều trị bảo tồn.",
  s:"Note (Gãy thân xương đùi)"},
-
 {t:"Thân xương đùi", multi:false, ans:["B"],
  q:"Tư vấn phục hồi chức năng đúng theo tài liệu là:",
  o:{A:"Đinh nội tủy thì hạn chế tì chân, nẹp vít thì tì chân sớm",B:"Đinh nội tủy thì tì chân sớm, nẹp vít thì hạn chế tì chân",C:"Cả hai đều tì chân hoàn toàn ngay sau mổ",D:"Cả hai đều bất động tuyệt đối 6 tháng",E:"Chỉ tì chân sau khi đã rút phương tiện kết xương"},
- e:"Đinh nội tủy: tập PHCN, tì chân sớm; nẹp vít: hạn chế tì chân. Tái khám 1–2–3 tháng, sau 3 tháng ổn có thể bỏ nạng.",
+ e:"Đinh nội tủy thì tập phục hồi chức năng và tì chân sớm; nẹp vít thì hạn chế tì chân. Tái khám tháng thứ nhất, hai, ba, sau ba tháng ổn có thể bỏ nạng.",
  s:"Note (Gãy thân xương đùi) – tư vấn"},
-
 {t:"Thân xương đùi", multi:false, ans:["C"],
  q:"Giới hạn giải phẫu của thân xương đùi theo tài liệu là:",
  o:{A:"Từ mấu chuyển đến lồi cầu",B:"3cm dưới mấu chuyển đến 3cm trên lồi cầu",C:"5cm dưới mấu chuyển đến 5cm trên lồi cầu",D:"Toàn bộ từ cổ xương đùi đến mâm chày",E:"Từ nền cổ đến hố khuỷu"},
  e:"Thân xương đùi giới hạn 5cm dưới mấu chuyển đến 5cm trên lồi cầu xương đùi.",
  s:"Note (Gãy thân xương đùi)"},
-
-/* --- GÃY TRÊN LỒI CẦU XƯƠNG CÁNH TAY (TE) --- */
 {t:"Trên lồi cầu (TE)", multi:false, ans:["C"],
  q:"Biến chứng đáng sợ nhất của gãy trên lồi cầu xương cánh tay ở trẻ em là:",
  o:{A:"Cứng khớp khuỷu",B:"Lệch trục khuỷu vẹo trong",C:"Hội chứng Volkmann do thiếu máu nuôi cơ",D:"Viêm xương mạn",E:"Chậm liền xương"},
- e:"Cần bắt mạch quay, theo dõi màu sắc ngón tay liên tục; sợ nhất Volkmann (hoại tử cơ do thiếu máu).",
- s:"Note (Gãy xương cơ bản) – keywords; Note (Gãy trên lồi cầu)"},
-
+ e:"Cần bắt mạch quay, theo dõi màu sắc ngón tay liên tục; sợ nhất Volkmann là hoại tử cơ do thiếu máu.",
+ s:"Note (Gãy xương cơ bản); Note (Gãy trên lồi cầu)"},
 {t:"Trên lồi cầu (TE)", multi:false, ans:["D"],
  q:"Thể gãy trên lồi cầu hay gặp nhất ở trẻ em, chiếm khoảng:",
  o:{A:"Thể gấp, 50%",B:"Thể gấp, 97%",C:"Thể duỗi, 65%",D:"Thể duỗi, 97%",E:"Thể xoay, 30%"},
- e:"Gãy trên lồi cầu thể duỗi chiếm ~97%, chủ yếu điều trị bảo tồn.",
+ e:"Gãy trên lồi cầu thể duỗi chiếm khoảng 97%, chủ yếu điều trị bảo tồn.",
  s:"Note (Gãy trên lồi cầu)"},
-
 {t:"Trên lồi cầu (TE)", multi:false, ans:["B"],
  q:"Đường gãy trên lồi cầu điển hình đi qua vị trí nào?",
  o:{A:"Qua đầu trên xương quay",B:"Qua hố khuỷu và hố vẹt",C:"Qua mỏm trên ròng rọc",D:"Qua sụn phát triển đầu trên cánh tay",E:"Qua mỏm khuỷu"},
- e:"Đường gãy điển hình đi qua hố khuỷu, hố vẹt — nơi xương mỏng nhất, là điểm yếu của đầu dưới xương cánh tay; gãy ngoài khớp.",
+ e:"Đường gãy điển hình đi qua hố khuỷu, hố vẹt là nơi xương mỏng nhất, điểm yếu của đầu dưới xương cánh tay; gãy ngoài khớp.",
  s:"Note (Gãy trên lồi cầu)"},
-
 {t:"Trên lồi cầu (TE)", multi:true, ans:["A","C"],
  q:"Gãy trên lồi cầu thể duỗi, đường gãy dốc, di lệch ra trước dễ gây tổn thương thần kinh nào? Chọn 2 đáp án đúng.",
  o:{A:"Thần kinh quay",B:"Thần kinh trụ đơn thuần",C:"Thần kinh giữa",D:"Thần kinh cơ bì",E:"Thần kinh nách"},
  e:"Gãy duỗi đường gãy dốc, di lệch ra trước có thể tổn thương thần kinh quay và thần kinh giữa.",
  s:"Note (Gãy trên lồi cầu)"},
-
 {t:"Trên lồi cầu (TE)", multi:false, ans:["B"],
  q:"Nguyên tắc bó bột sau nắn chỉnh hoặc mổ gãy trên lồi cầu là:",
  o:{A:"Bó bột tròn kín ngay từ đầu",B:"Nẹp bột rạch dọc trước, sau đó chuyển bột tròn kín",C:"Chỉ băng thun, không cần bột",D:"Bột tròn kín rồi rạch dọc khi xuất viện",E:"Cố định ngoài bằng khung trong mọi trường hợp"},
- e:"Sau nắn/mổ dùng nẹp bột rạch dọc để tiện theo dõi phần mềm và biến chứng, sau đó chuyển sang bột tròn kín.",
+ e:"Sau nắn hoặc mổ dùng nẹp bột rạch dọc để tiện theo dõi phần mềm và biến chứng, sau đó chuyển sang bột tròn kín.",
  s:"Note (Gãy trên lồi cầu)"},
-
-/* --- GÃY XƯƠNG HỞ --- */
 {t:"Gãy xương hở", multi:false, ans:["D"],
- q:"Trong mổ, sau cắt lọc thì đầu vết thương lộ xương, phần mềm còn lại không đủ che phủ ổ gãy, không tổn thương mạch – thần kinh. Theo Gustilo–Anderson là:",
+ q:"Trong mổ, sau cắt lọc thì đầu vết thương lộ xương, phần mềm còn lại không đủ che phủ ổ gãy, không tổn thương mạch và thần kinh. Theo Gustilo - Anderson là:",
  o:{A:"Độ I",B:"Độ II",C:"Độ IIIA",D:"Độ IIIB",E:"Độ IIIC"},
- e:"IIIB: phần mềm nặng, sau cắt lọc lộ xương, không đủ che phủ, phải chuyển vạt. IIIC mới kèm tổn thương mạch – thần kinh.",
+ e:"IIIB: phần mềm nặng, sau cắt lọc lộ xương, không đủ che phủ, phải chuyển vạt. IIIC mới kèm tổn thương mạch và thần kinh.",
  s:"Note (Gãy xương hở)"},
-
 {t:"Gãy xương hở", multi:false, ans:["E"],
- q:"Gãy hở kèm tổn thương mạch máu phải khâu phục hồi được xếp độ Gustilo–Anderson:",
+ q:"Gãy hở kèm tổn thương mạch máu phải khâu phục hồi được xếp độ Gustilo - Anderson:",
  o:{A:"Độ II",B:"Độ IIIA",C:"Độ I",D:"Độ IIIB",E:"Độ IIIC"},
- e:"IIIC: bất kỳ tổn thương nào kèm tổn thương mạch máu, thần kinh (phải khâu phục hồi lại mạch).",
+ e:"IIIC: bất kỳ tổn thương nào kèm tổn thương mạch máu, thần kinh, phải khâu phục hồi lại mạch.",
  s:"Note (Gãy xương hở)"},
-
 {t:"Gãy xương hở", multi:false, ans:["A"],
  q:"Thời điểm cắt lọc vết thương phần mềm được khuyến cáo tốt nhất là:",
  o:{A:"Trước 6 giờ",B:"Trong khoảng 12 – 24 giờ",C:"Sau 24 giờ",D:"Sau 48 giờ",E:"Bất kỳ thời điểm nào trong tuần đầu"},
  e:"Nên cắt lọc vết thương trước 6 giờ.",
  s:"Note (Gãy xương hở)"},
-
 {t:"Gãy xương hở", multi:false, ans:["B"],
  q:"Vị trí gãy xương hở hay gặp nhất theo thống kê trong tài liệu là:",
  o:{A:"Đùi",B:"Cẳng chân",C:"Cẳng tay",D:"Cánh tay",E:"Bàn ngón tay"},
  e:"Thứ tự thường gặp: cẳng chân 49,6%, đùi 12,7%, cẳng tay 12,6%, cánh tay 5,4%.",
  s:"Note (Gãy xương hở)"},
-
 {t:"Gãy xương hở", multi:false, ans:["C"],
  q:"Theo diễn biến nhiễm trùng vết thương, giai đoạn nhiễm khuẩn được tính khi:",
  o:{A:"Dưới 6 giờ sau chấn thương",B:"6 – 12 giờ sau chấn thương",C:"Trên 12 giờ sau chấn thương",D:"Trên 48 giờ sau chấn thương",E:"Sau khi có mủ trên lâm sàng"},
- e:"Giai đoạn đầu <6h, giai đoạn tiềm tàng 6–12h, giai đoạn nhiễm khuẩn >12h sau chấn thương.",
+ e:"Giai đoạn đầu dưới 6 giờ, giai đoạn tiềm tàng 6 đến 12 giờ, giai đoạn nhiễm khuẩn trên 12 giờ sau chấn thương.",
  s:"Note (Gãy xương hở)"},
-
 {t:"Gãy xương hở", multi:false, ans:["A"],
  q:"Nguyên tắc phẫu thuật cốt lõi của gãy xương hở là:",
  o:{A:"Cắt lọc rạch rộng, cố định xương vững và để hở",B:"Cắt lọc tối thiểu, khâu kín da thì đầu",C:"Chỉ băng ép và bất động, không phẫu thuật",D:"Kéo liên tục đến khi liền xương",E:"Đóng đinh nội tủy kín và khâu kín mọi trường hợp"},
- e:"Nguyên tắc: cắt lọc rạch rộng, cố định xương vững và để hở; độ II–III mổ cấp cứu.",
+ e:"Nguyên tắc: cắt lọc rạch rộng, cố định xương vững và để hở; độ II và III mổ cấp cứu.",
  s:"Note (Gãy xương hở)"},
-
 {t:"Gãy xương hở", multi:true, ans:["A","C","D"],
  q:"Xử trí sơ cứu đúng cho bệnh nhân gãy xương hở gồm. Chọn 3 đáp án đúng.",
  o:{A:"Tiêm phòng uốn ván và kháng sinh toàn thân nên dùng trong 6 giờ đầu",B:"Khâu kín vết thương ngay tại tuyến đầu",C:"Băng ép vết thương, hạn chế mở băng nhiều lần",D:"Bất động, không kéo đầu xương tụt vào trong",E:"Cố ý kéo đầu xương lộ ra ngoài cho gọn vào ổ gãy"},
- e:"Sơ cứu: hồi sức, giảm đau, băng ép hạn chế mở băng, bất động không kéo đầu xương tụt vào (tránh đưa vi khuẩn vào sâu), chống uốn ván + kháng sinh toàn thân trong 6h đầu.",
+ e:"Sơ cứu: hồi sức, giảm đau, băng ép hạn chế mở băng, bất động không kéo đầu xương tụt vào, chống uốn ván và kháng sinh toàn thân trong 6 giờ đầu.",
  s:"Note (Gãy xương hở)"},
-
 {t:"Gãy xương hở", multi:false, ans:["B"],
  q:"Mức độ mất máu ước tính đối với gãy xương vùng chậu theo tài liệu là:",
  o:{A:"500 – 1000 ml",B:"Trên 2000 ml",C:"100 – 300 ml",D:"1000 – 1500 ml",E:"Dưới 500 ml"},
- e:"Mất máu: cẳng chân/cánh tay 500–1000 ml; xương chậu >2000 ml.",
+ e:"Mất máu: cẳng chân và cánh tay 500 đến 1000 ml; xương chậu trên 2000 ml.",
  s:"Note (Gãy xương hở)"},
-
-/* --- NGUYÊN LÝ CHUNG --- */
 {t:"Nguyên lý chung", multi:true, ans:["B","D"],
  q:"Về khớp giả, nhận định ĐÚNG gồm. Chọn 2 đáp án đúng.",
  o:{A:"Là tình trạng can lệch trục xương",B:"Là không liền xương sau 6 tháng",C:"Là biến chứng ngay sau mổ",D:"Thường phải ghép xương mới liền được",E:"Tự liền nếu kéo dài thời gian bất động"},
- e:"Khớp giả: không liền xương sau 6 tháng (hoặc quá 2 lần thời gian liền xương), là biến chứng muộn, phải ghép xương mới liền được.",
+ e:"Khớp giả là không liền xương sau 6 tháng hoặc quá hai lần thời gian liền xương, là biến chứng muộn, phải ghép xương mới liền được.",
  s:"Note (Gãy xương cơ bản); Note (Gãy xương hở)"},
-
 {t:"Nguyên lý chung", multi:false, ans:["C"],
  q:"Loại gãy chi trên nào ở người lớn bắt buộc phải mổ nẹp vít theo tài liệu?",
  o:{A:"Gãy thân xương cánh tay ít di lệch",B:"Gãy đầu dưới xương quay kiểu Colles",C:"Gãy hai xương cẳng tay",D:"Gãy mỏm khuỷu rạn",E:"Gãy xương đòn 1/3 giữa"},
- e:"Gãy 2 xương cẳng tay người lớn bắt buộc mổ để phục hồi độ cong xương quay và màng liên cốt, đảm bảo động tác sấp – ngửa; bó bột dễ gây dính, mất sấp ngửa.",
+ e:"Gãy hai xương cẳng tay người lớn bắt buộc mổ để phục hồi độ cong xương quay và màng liên cốt, đảm bảo động tác sấp ngửa; bó bột dễ gây dính, mất sấp ngửa.",
  s:"Note (Gãy xương cơ bản)"},
-
 {t:"Nguyên lý chung", multi:true, ans:["A","C","D"],
  q:"Những vị trí xương được nuôi dưỡng kém, dễ dẫn tới khớp giả gồm. Chọn 3 đáp án đúng.",
  o:{A:"Cổ xương đùi",B:"Thân xương đùi",C:"Đầu dưới xương chày",D:"Xương sên, xương thuyền",E:"Thân xương cánh tay"},
  e:"Vị trí nuôi dưỡng kém dễ khớp giả: cổ xương đùi, đầu dưới xương chày, xương sên, xương thuyền.",
  s:"Note (Gãy xương cơ bản) – nguyên nhân khớp giả"},
-
 {t:"Nguyên lý chung", multi:false, ans:["B"],
  q:"Nhận định nào ĐÚNG về phân loại thời điểm của các biến chứng?",
  o:{A:"Rối loạn dinh dưỡng là biến chứng muộn",B:"Rối loạn dinh dưỡng là biến chứng sớm, Volkmann là hậu quả muộn của nó",C:"Viêm xương là biến chứng ngay",D:"Tắc mạch mỡ tủy là biến chứng muộn",E:"Khớp giả là biến chứng sớm"},
- e:"Rối loạn dinh dưỡng là biến chứng ngay/sớm, hội chứng Volkmann là hậu quả muộn của rối loạn dinh dưỡng này; viêm xương là biến chứng muộn.",
+ e:"Rối loạn dinh dưỡng là biến chứng ngay và sớm, hội chứng Volkmann là hậu quả muộn của rối loạn dinh dưỡng này; viêm xương là biến chứng muộn.",
  s:"Note (Gãy xương cơ bản)"},
-
 {t:"Nguyên lý chung", multi:true, ans:["B","C","D"],
- q:"Trường hợp nào thuộc chỉ định phẫu thuật (không bảo tồn)? Chọn 3 đáp án đúng.",
- o:{A:"Gãy vững thân xương dài ít di lệch",B:"Gãy nội khớp di lệch diện khớp >2mm",C:"Gãy hở độ 1, 2",D:"Nắn bảo tồn không đạt kết quả",E:"Gãy nhỏ xương bàn ngón tay"},
- e:"Chỉ định mổ: nắn bảo tồn không đạt, gãy mất vững, gãy nội khớp di lệch >2mm, gãy vị trí khó liền, gãy nhiều xương, gãy hở độ 1–2, gãy vùng tăng trưởng... Gãy vững ít di lệch và gãy nhỏ bàn ngón tay thuộc nhóm bảo tồn.",
+ q:"Trường hợp nào thuộc chỉ định phẫu thuật, không bảo tồn? Chọn 3 đáp án đúng.",
+ o:{A:"Gãy vững thân xương dài ít di lệch",B:"Gãy nội khớp di lệch diện khớp trên 2mm",C:"Gãy hở độ 1, 2",D:"Nắn bảo tồn không đạt kết quả",E:"Gãy nhỏ xương bàn ngón tay"},
+ e:"Chỉ định mổ: nắn bảo tồn không đạt, gãy mất vững, gãy nội khớp di lệch trên 2mm, gãy vị trí khó liền, gãy nhiều xương, gãy hở độ 1 và 2, gãy vùng tăng trưởng. Gãy vững ít di lệch và gãy nhỏ bàn ngón tay thuộc nhóm bảo tồn.",
  s:"Note (Gãy xương cơ bản) – chỉ định"},
-
 {t:"Nguyên lý chung", multi:false, ans:["A"],
- q:"Theo định hướng điều trị, vì sao gãy thân xương chi dưới (đùi, cẳng chân) thường ưu tiên phẫu thuật hơn chi trên?",
+ q:"Theo định hướng điều trị, vì sao gãy thân xương chi dưới thường ưu tiên phẫu thuật hơn chi trên?",
  o:{A:"Phục hồi giải phẫu để tập đi sớm, tránh nằm lâu gây loét, viêm phổi, tắc mạch",B:"Chi dưới không có cơ bao bọc nên không thể bó bột",C:"Xương chi dưới không bao giờ liền khi bảo tồn",D:"Chi dưới không chịu trọng lực cơ thể",E:"Chi trên luôn phải mổ trước chi dưới"},
  e:"Chi trên ưu tiên bảo tồn vì không chịu trọng lực, khớp bù trừ tốt; chi dưới ưu tiên phẫu thuật để phục hồi giải phẫu và tập đi sớm, tránh biến chứng nằm lâu.",
  s:"Note (Gãy xương cơ bản)"}
 ];
 
+/* ====== BỘ CASE LÂM SÀNG (trích từ tài liệu Note) ====== */
+const CASES = [
+
+{ id:"C1", type:"A", topic:"Thân xương đùi – Gãy hở",
+ title:"Nam 30 tuổi, tai nạn xe máy, đau dữ dội đùi phải",
+ stem:"Anh K. 30 tuổi, công nhân, vào cấp cứu 40 phút sau tai nạn xe máy tốc độ cao. Bệnh nhân tỉnh, kêu đau dữ dội đùi phải, không nhấc được chân phải. Mạch 116 lần/phút, huyết áp 90/60 mmHg, da niêm nhợt, vã mồ hôi. Tiền sử khỏe mạnh.",
+ questions:[
+  { q:"Ngay khi tiếp nhận, thái độ thăm khám tại chỗ KHÔNG phù hợp là:",
+    o:{A:"Bắt mạch mu chân và chày sau hai bên",B:"Đánh giá vận động, cảm giác đầu chi phải",C:"Tìm cử động bất thường và lạo xạo xương",D:"So sánh chiều dài hai chi dưới",E:"Quan sát màu sắc, nhiệt độ da đầu chi",F:"Quan sát biến dạng, sưng nề vùng đùi"},
+    ans:["C"], multi:false,
+    e:"Không tìm cử động bất thường và dấu lạo xạo xương vì dễ gây sốc.",
+    s:"Note (Gãy thân xương đùi)" },
+  { lead:"Khám thấy vết thương 12 cm mặt trước đùi, dính đất cát, rỉ máu lẫn váng mỡ; đùi biến dạng gập góc, ngắn chi.",
+    q:"Xử trí ưu tiên trước khi đưa bệnh nhân đi chụp X-quang gồm. Chọn 3/6 đáp án đúng:",
+    o:{A:"Nắn chỉnh kín ổ gãy ngay tại giường",B:"Hồi sức bù dịch chống sốc",C:"Garô gốc chi thường quy",D:"Băng ép vết thương, hạn chế mở băng",E:"Đóng đinh nội tủy cấp tại cấp cứu",F:"Bất động bằng nẹp, không kéo đầu xương tụt vào"},
+    ans:["B","D","F"], multi:true,
+    e:"Cần cố định và chống sốc trước khi chụp; băng ép hạn chế mở băng; bất động không kéo đầu xương tụt vào tránh đưa vi khuẩn vào sâu.",
+    s:"Note (Gãy thân xương đùi); Note (Gãy xương hở)" },
+  { lead:"Bệnh nhân đã được cố định tạm thời và hồi sức ổn định.",
+    q:"Các thăm dò hình ảnh cần thực hiện gồm. Chọn 3/6 đáp án đúng:",
+    o:{A:"Cộng hưởng từ đùi có tiêm thuốc",B:"X-quang đùi thẳng nghiêng lấy hết chiều dài, gồm khớp háng và gối",C:"Đo mật độ xương toàn thân",D:"Siêu âm Doppler mạch chi dưới phải",E:"Đánh giá tổn thương phối hợp sọ não, ngực, bụng",F:"Xạ hình xương toàn thân"},
+    ans:["B","D","E"], multi:true,
+    e:"X-quang tele lấy hết chiều dài kèm háng và gối; siêu âm Doppler tìm tổn thương mạch; phát hiện đa chấn thương sọ não, ngực, bụng.",
+    s:"Note (Gãy thân xương đùi)" },
+  { lead:"Trong mổ, sau cắt lọc thì đầu, vết thương lộ xương, phần mềm còn lại không đủ che phủ ổ gãy; không tổn thương mạch máu, thần kinh lớn.",
+    q:"Theo Gustilo - Anderson, tổn thương được xếp:",
+    o:{A:"Độ II",B:"Độ IIIA",C:"Độ I",D:"Độ IIIB",E:"Độ IIIC",F:"Độ II chuyển độ III"},
+    ans:["D"], multi:false,
+    e:"IIIB: sau cắt lọc lộ xương, không đủ che phủ, phải chuyển vạt; IIIC mới kèm tổn thương mạch, thần kinh.",
+    s:"Note (Gãy xương hở)" },
+  { q:"Nguyên tắc xử trí phẫu thuật phù hợp nhất là:",
+    o:{A:"Cắt lọc rồi khâu kín da thì đầu trên nẹp vít",B:"Đóng đinh nội tủy kín thì đầu, khâu kín da",C:"Cắt lọc rạch rộng, cố định xương vững, để hở",D:"Bó bột đùi - bàn chân theo dõi",E:"Kéo liên tục đến khi liền xương",F:"Garô và chờ mổ phiên"},
+    ans:["C"], multi:false,
+    e:"Nguyên tắc gãy hở: cắt lọc rạch rộng, cố định xương vững và để hở.",
+    s:"Note (Gãy xương hở)" },
+  { lead:"Sau 6 tháng, ổ gãy chưa liền, X-quang thấy hai đầu xương xơ đặc và bít ống tủy.",
+    q:"Nhận định ĐÚNG về biến chứng này gồm. Chọn 2/6 đáp án đúng:",
+    o:{A:"Là can lệch",B:"Là khớp giả",C:"Là biến chứng ngay sau mổ",D:"Thường phải ghép xương mới liền",E:"Là biến chứng sớm tuần đầu",F:"Tự liền nếu kéo dài bất động"},
+    ans:["B","D"], multi:true,
+    e:"Khớp giả: không liền xương sau 6 tháng, là biến chứng muộn, phải ghép xương mới liền được.",
+    s:"Note (Gãy xương cơ bản); Note (Gãy xương hở)" }
+ ]},
+
+{ id:"C2", type:"A", topic:"Trên lồi cầu xương cánh tay (TE)",
+ title:"Bé trai 7 tuổi, ngã chống tay, sưng biến dạng khuỷu trái",
+ stem:"Bé trai 7 tuổi, ngã chống tay khi chơi, vào viện vì đau và sưng biến dạng vùng khuỷu trái, không co duỗi được khuỷu. Trẻ quấy khóc nhiều. Chưa khai thác thêm.",
+ questions:[
+  { q:"Thăm khám cần ưu tiên thực hiện và theo dõi liên tục ở trẻ là:",
+    o:{A:"Đo tầm vận động khớp vai",B:"Bắt mạch quay và quan sát màu sắc ngón tay",C:"Chụp X-quang cột sống cổ",D:"Đánh giá phản xạ gân gối",E:"Khám thị lực hai mắt",F:"Đo vòng cánh tay đối bên"},
+    ans:["B"], multi:false,
+    e:"Phải bắt mạch quay và theo dõi màu sắc ngón tay liên tục vì sợ nhất hội chứng Volkmann.",
+    s:"Note (Gãy xương cơ bản); Note (Gãy trên lồi cầu)" },
+  { lead:"X-quang: gãy đầu dưới xương cánh tay, đường gãy đi qua hố khuỷu và hố vẹt, ngoài khớp.",
+    q:"Chẩn đoán phù hợp nhất là:",
+    o:{A:"Gãy trên lồi cầu thể gấp",B:"Gãy trên lồi cầu thể duỗi",C:"Gãy liên lồi cầu xương cánh tay",D:"Gãy lồi cầu ngoài xương cánh tay",E:"Trật khớp khuỷu",F:"Gãy mỏm khuỷu"},
+    ans:["B"], multi:false,
+    e:"Cơ chế ngã chống tay, thể duỗi chiếm khoảng 97%; đường gãy điển hình qua hố khuỷu và hố vẹt.",
+    s:"Note (Gãy trên lồi cầu)" },
+  { q:"Ở thể gãy này, thần kinh có nguy cơ tổn thương gồm. Chọn 2/6 đáp án đúng:",
+    o:{A:"Thần kinh trụ đơn thuần",B:"Thần kinh quay",C:"Thần kinh cơ bì",D:"Thần kinh giữa",E:"Thần kinh nách",F:"Thần kinh bì cẳng tay trong"},
+    ans:["B","D"], multi:true,
+    e:"Gãy thể duỗi, đường gãy dốc, di lệch ra trước dễ tổn thương thần kinh quay và thần kinh giữa.",
+    s:"Note (Gãy trên lồi cầu)" },
+  { lead:"Đầu chi hồng, mạch quay còn bắt được; nghi ngờ có thành phần tổn thương mạch nên cho siêu âm Doppler.",
+    q:"Nội dung siêu âm Doppler cần khảo sát ở trẻ, TRỪ:",
+    o:{A:"Hình thái động mạch và tĩnh mạch",B:"Tốc độ dòng chảy",C:"Tình trạng tắc mạch",D:"Hình thái, cấu trúc thần kinh giữa",E:"Mật độ khoáng xương cánh tay",F:"Co giãn, thay đổi kích thước mạch"},
+    ans:["E"], multi:false,
+    e:"Siêu âm khảo sát hình thái động và tĩnh mạch, tốc độ dòng chảy, tắc mạch, co giãn mạch và cấu trúc thần kinh giữa; không khảo sát mật độ khoáng xương.",
+    s:"Note (Gãy trên lồi cầu)" },
+  { q:"Hướng điều trị phù hợp với đa số trường hợp gãy thể này là:",
+    o:{A:"Phẫu thuật mở kết hợp xương thường quy",B:"Điều trị bảo tồn",C:"Thay khớp khuỷu",D:"Cố định ngoài vĩnh viễn",E:"Kéo liên tục sáu tuần",F:"Bó bột tròn kín ngay không nắn"},
+    ans:["B"], multi:false,
+    e:"Gãy trên lồi cầu thể duỗi chủ yếu điều trị bảo tồn.",
+    s:"Note (Gãy trên lồi cầu)" },
+  { lead:"Sau bó bột 6 giờ, trẻ đau tăng dữ dội, các ngón tay tím, đau chói khi duỗi thụ động ngón, mạch quay khó bắt.",
+    q:"Xử trí phù hợp nhất lúc này là:",
+    o:{A:"Trấn an, tiếp tục theo dõi",B:"Tăng liều giảm đau, giữ nguyên bột",C:"Rạch dọc, nới lỏng bột và đánh giá lại",D:"Gác cao tay và chườm ấm",E:"Chụp lại X-quang rồi chờ",F:"Băng ép chặt thêm vùng khuỷu"},
+    ans:["C"], multi:false,
+    e:"Dấu hiệu chèn ép tiến triển, nguy cơ Volkmann; nẹp bột rạch dọc để theo dõi và chăm sóc biến chứng, phải nới bột và đánh giá lại ngay.",
+    s:"Note (Gãy trên lồi cầu); Note (Gãy xương cơ bản)" }
+ ]},
+
+{ id:"C3", type:"B", topic:"Cổ xương đùi",
+ title:"Nữ 78 tuổi, loãng xương, ngã đập mông, đau háng trái",
+ stem:"Bà L. 78 tuổi, loãng xương, tăng huyết áp, sau trượt ngã đập mông trái xuống nền nhà tắm. Vào viện đau vùng háng trái, không đứng dậy và không đi lại được; chân trái ngắn, bàn chân đổ ngoài. X-quang khung chậu: gãy cổ xương đùi trái, gãy hoàn toàn, di lệch rời hẳn, các bè xương dọc song song nhau. Bệnh nhân tỉnh, sinh hiệu ổn định.",
+ questions:[
+  { q:"Theo phân loại Garden, tổn thương được xếp:",
+    o:{A:"Garden I",B:"Garden II",C:"Garden III",D:"Garden IV",E:"Garden III chuyển IV",F:"Garden II di lệch"},
+    ans:["D"], multi:false,
+    e:"Garden IV: gãy hoàn toàn, di lệch rời hẳn, các bè xương dọc song song; tiên lượng xấu nhất.",
+    s:"Note (Gãy xương cơ bản) – Garden" },
+  { q:"Yếu tố giải thích tiên lượng liền xương xấu ở vị trí gãy này gồm. Chọn 3/6 đáp án đúng:",
+    o:{A:"Gãy trong bao khớp không tạo can ngoại vi từ màng xương",B:"Ổ gãy được màng xương phủ dày",C:"Nước hoạt dịch làm tiêu máu tụ ổ gãy",D:"Càng di lệch cấp máu vùng cổ chỏm càng kém",E:"Cổ xương đùi giàu mạch nuôi từ ba nguồn lớn",F:"Gãy ngoài bao khớp nên liền nhanh"},
+    ans:["A","C","D"], multi:true,
+    e:"Gãy trong bao khớp không tạo can ngoại vi; nước hoạt dịch tiêu máu tụ; càng di lệch cấp máu cổ chỏm càng kém nên càng khó liền.",
+    s:"Note (Gãy cổ xương đùi)" },
+  { q:"Nguồn cấp máu quan trọng nhất cho chỏm xương đùi là:",
+    o:{A:"Động mạch dây chằng tròn",B:"Động mạch mũ đùi trong và ngoài",C:"Động mạch từ thân xương đùi",D:"Động mạch bịt",E:"Động mạch mông trên",F:"Động mạch đùi nông"},
+    ans:["B"], multi:false,
+    e:"Động mạch mũ đùi trong và ngoài tách từ động mạch đùi sâu là nhánh quan trọng nhất nuôi chỏm.",
+    s:"Note (Gãy cổ xương đùi)" },
+  { q:"Hướng điều trị phù hợp nhất cho bệnh nhân là:",
+    o:{A:"Bó bột chậu - đùi",B:"Kết hợp xương bằng vít xốp",C:"Kéo liên tục",D:"Thay khớp háng",E:"Theo dõi, không can thiệp",F:"Nẹp vít nén ép động"},
+    ans:["D"], multi:false,
+    e:"Garden III, IV ở người già bắt buộc thay khớp háng.",
+    s:"Note (Gãy xương cơ bản) – mẹo Garden" },
+  { q:"Lý do ưu tiên phẫu thuật sớm ở bệnh nhân này là:",
+    o:{A:"Ổ gãy đe dọa tính mạng tức thì",B:"Mất máu ồ ạt cần cầm máu cấp",C:"Tránh biến chứng nằm lâu như viêm phổi, loét",D:"Phục hồi cảm giác chi tổn thương",E:"Ngăn tổn thương thần kinh tọa",F:"Giải phóng chèn ép tủy sống"},
+    ans:["C"], multi:false,
+    e:"Tiên lượng tử vong chủ yếu do biến chứng nằm lâu như viêm phổi, loét; mổ thay khớp để ngồi dậy sớm.",
+    s:"Note (Gãy xương cơ bản) – keywords" },
+  { lead:"Bệnh nhân được thay khớp háng.",
+    q:"Nhận định ĐÚNG về biến chứng trật khớp nhân tạo gồm. Chọn 2/6 đáp án đúng:",
+    o:{A:"Tỷ lệ trật chung khoảng 10%",B:"Thay bán phần trật cao hơn toàn phần 7 lần",C:"Thay toàn phần trật cao hơn bán phần khoảng 7 lần",D:"Trật khớp nhân tạo không bao giờ xảy ra",E:"Tỷ lệ trật chung khoảng 50%",F:"Hai loại có tỷ lệ trật như nhau"},
+    ans:["A","C"], multi:true,
+    e:"Trật khớp nhân tạo sau mổ khoảng 10%; thay khớp toàn phần có tỷ lệ trật cao hơn bán phần khoảng 7 lần.",
+    s:"Note (Gãy cổ xương đùi)" }
+ ]},
+
+{ id:"C4", type:"B", topic:"Gãy xương hở",
+ title:"Nam 28 tuổi, tai nạn xe máy, vết thương cẳng chân phải",
+ stem:"Anh T. 28 tuổi, lao động phổ thông, tai nạn xe máy, vào viện giờ thứ 2. Cẳng chân phải có vết thương 6 cm, bờ tương đối gọn, tổn thương da và dưới da mức độ vừa, không lộ xương, chảy máu vừa. Mạch 92 lần/phút, huyết áp 110/70 mmHg, bệnh nhân tỉnh.",
+ questions:[
+  { q:"Theo Gustilo - Anderson, vết thương được xếp:",
+    o:{A:"Độ I",B:"Độ II",C:"Độ IIIA",D:"Độ IIIB",E:"Độ IIIC",F:"Độ I chuyển II"},
+    ans:["B"], multi:false,
+    e:"Độ II: vết thương 1 đến 10 cm, tương đối gọn sạch, tổn thương da và dưới da vừa.",
+    s:"Note (Gãy xương hở)" },
+  { q:"Bệnh nhân đến giờ thứ 2; mốc thời gian cắt lọc được khuyến cáo trước:",
+    o:{A:"3 giờ",B:"6 giờ",C:"12 giờ",D:"24 giờ",E:"48 giờ",F:"72 giờ"},
+    ans:["B"], multi:false,
+    e:"Nên cắt lọc vết thương phần mềm trước 6 giờ.",
+    s:"Note (Gãy xương hở)" },
+  { q:"Dấu hiệu trên X-quang gợi ý gãy xương hở gồm. Chọn 2/6 đáp án đúng:",
+    o:{A:"Hình khí ở đầu ổ gãy",B:"Đường gãy ngang đơn thuần",C:"Dị vật cản quang trong ổ gãy",D:"Hẹp khe khớp gối",E:"Loãng xương lan tỏa",F:"Calci hóa phần mềm"},
+    ans:["A","C"], multi:true,
+    e:"Trên phim có hình khí ở đầu ổ gãy hoặc dị vật cản quang trong ổ gãy gợi ý gãy xương hở.",
+    s:"Note (Gãy xương hở)" },
+  { q:"Hướng xử trí phù hợp nhất với tổn thương độ này là:",
+    o:{A:"Bảo tồn, mổ phiên theo kế hoạch",B:"Mổ cấp cứu cắt lọc, cố định xương, để hở",C:"Khâu kín da thì đầu sau rửa vết thương",D:"Bó bột rạch dọc đơn thuần",E:"Garô và chuyển tuyến",F:"Chờ hết nhiễm bẩn rồi mổ"},
+    ans:["B"], multi:false,
+    e:"Gãy hở độ II, III mổ cấp cứu; nguyên tắc cắt lọc, cố định xương vững, để hở.",
+    s:"Note (Gãy xương hở)" },
+  { q:"Trong xử trí ban đầu gãy xương hở, nội dung KHÔNG phù hợp là:",
+    o:{A:"Tiêm phòng uốn ván",B:"Kháng sinh toàn thân trong 6 giờ đầu",C:"Băng ép, hạn chế mở băng nhiều lần",D:"Khâu kín vết thương ngay khi tiếp nhận",E:"Bất động, không kéo đầu xương tụt vào",F:"Giảm đau, chống phù nề"},
+    ans:["D"], multi:false,
+    e:"Không khâu kín thì đầu; gãy hở để hở, cấm khâu kín nhất là đến muộn hoặc nhiễm trùng.",
+    s:"Note (Gãy xương hở)" },
+  { q:"Sắp xếp biến chứng của gãy xương hở, nhận định ĐÚNG gồm. Chọn 3/6 đáp án đúng:",
+    o:{A:"Sốc chấn thương là biến chứng ngay",B:"Tắc mạch mỡ tủy là biến chứng muộn",C:"Nhiễm khuẩn là biến chứng sớm",D:"Viêm xương là biến chứng ngay",E:"Khớp giả là biến chứng muộn",F:"Rối loạn dinh dưỡng là biến chứng muộn"},
+    ans:["A","C","E"], multi:true,
+    e:"Ngay: sốc, tổn thương mạch thần kinh, tắc mạch mỡ tủy. Sớm: nhiễm khuẩn, rối loạn dinh dưỡng. Muộn: viêm xương, khớp giả, can lệch, teo cơ cứng khớp.",
+    s:"Note (Gãy xương hở)" }
+ ]}
+
+];
+
 /* ====== LOGIC ====== */
 const $=id=>document.getElementById(id);
-let quiz=[], idx=0, score=0, picked=[], answered=false;
+let quiz=[], idx=0, score=0, picked=[], answered=false, isCase=false, curCase=null;
 
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 
-function initTopics(){
+function buildQ(q){
+  const keys=shuffle(Object.keys(q.o));
+  const remap={}; const newo={}; const newKeys=["A","B","C","D","E","F"];
+  keys.forEach((oldK,i)=>{remap[oldK]=newKeys[i]; newo[newKeys[i]]=q.o[oldK];});
+  return {...q,o:newo,ans:q.ans.map(k=>remap[k])};
+}
+
+function initUI(){
   $("bankCount").textContent=BANK.length;
+  $("caseCount").textContent=CASES.length;
   const topics=[...new Set(BANK.map(q=>q.t))];
   topics.forEach(t=>{const o=document.createElement("option");o.value=t;o.textContent=t;$("topicSel").appendChild(o);});
+  CASES.forEach(c=>{const o=document.createElement("option");o.value=c.id;o.textContent=`[${c.type}] ${c.title}`;$("caseSel").appendChild(o);});
+  $("mode").onchange=()=>{
+    const m=$("mode").value;
+    $("bankCtrl").classList.toggle("hide",m!=="bank");
+    $("caseCtrl").classList.toggle("hide",m!=="case");
+  };
 }
 
 function startQuiz(){
+  isCase=false;curCase=null;
   const n=parseInt($("numQ").value);
   const tp=$("topicSel").value;
   let pool=BANK.filter(q=>tp==="all"||q.t===tp);
   pool=shuffle([...pool]).slice(0,Math.min(n,pool.length));
-  quiz=pool.map(q=>{
-    const keys=shuffle(Object.keys(q.o));
-    const remap={}; const newo={}; const newKeys=["A","B","C","D","E","F"];
-    keys.forEach((oldK,i)=>{remap[oldK]=newKeys[i]; newo[newKeys[i]]=q.o[oldK];});
-    return {...q,o:newo,ans:q.ans.map(k=>remap[k])};
-  });
+  quiz=pool.map(buildQ);
   idx=0;score=0;
+  $("stemBox").classList.add("hide");
   $("start").classList.add("hide");$("result").classList.add("hide");$("quiz").classList.remove("hide");
   renderQ();
 }
+
+function startCase(){
+  isCase=true;
+  const sel=$("caseSel").value;
+  curCase = sel==="random" ? CASES[Math.floor(Math.random()*CASES.length)] : CASES.find(c=>c.id===sel);
+  quiz=curCase.questions.map(buildQ);
+  idx=0;score=0;
+  $("stemBox").innerHTML=`<b>${curCase.title}</b><br>${curCase.stem}`;
+  $("stemBox").classList.remove("hide");
+  $("start").classList.add("hide");$("result").classList.add("hide");$("quiz").classList.remove("hide");
+  renderQ();
+}
+
+function begin(){ $("mode").value==="case" ? startCase() : startQuiz(); }
 
 function renderQ(){
   answered=false;picked=[];
   const q=quiz[idx];
   $("counter").textContent=`Câu ${idx+1} / ${quiz.length}`;
-  $("topicTag").textContent=q.t;
+  $("topicTag").textContent=isCase?curCase.topic:q.t;
   $("prog").style.width=`${(idx)/quiz.length*100}%`;
+  if(q.lead){$("leadBox").textContent=q.lead;$("leadBox").classList.remove("hide");}
+  else $("leadBox").classList.add("hide");
   $("qtext").textContent=q.q;
   if(q.multi){$("multiHint").classList.remove("hide");$("multiHint").textContent=`⚠ Câu nhiều lựa chọn – chọn ${q.ans.length} đáp án đúng`;}
   else $("multiHint").classList.add("hide");
@@ -434,11 +604,11 @@ function showResult(){
   });
 }
 
-initTopics();
-$("startBtn").onclick=startQuiz;
+initUI();
+$("startBtn").onclick=begin;
 $("checkBtn").onclick=check;
 $("nextBtn").onclick=next;
-$("againBtn").onclick=startQuiz;
+$("againBtn").onclick=begin;
 $("quitBtn").onclick=()=>{$("quiz").classList.add("hide");$("start").classList.remove("hide");};
 $("homeBtn").onclick=()=>{$("result").classList.add("hide");$("start").classList.remove("hide");};
 </script>
